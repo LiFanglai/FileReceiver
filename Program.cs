@@ -2,15 +2,20 @@
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
+using System.Runtime.InteropServices;
 
 namespace FileReceiver
 {
     class Program
     {
+        [DllImport("Kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+
         static void Main(string[] args)
         {
-            byte[] response = new byte[256];
+            const string TARGETDIR = @"e:\result\";
+            const string LINKDIR = @"e:\link\";
+            byte[] response = new byte[4];
             TcpListener listener = new TcpListener(IPAddress.Parse("127.0.0.1"), 9527);
             Console.WriteLine("TcpListener start");
             listener.Start();
@@ -40,11 +45,36 @@ namespace FileReceiver
                     }
 
                     Console.WriteLine("FileStream write {0}", fileName);
-                    using (FileStream fs = new FileStream(@"e:\" + fileName, FileMode.Create))
+
+                    string folderPath = TARGETDIR + fileName;
+                    string linkFolderPath = LINKDIR + fileName;
+                    int index = folderPath.LastIndexOf(@"\");
+                    if(index > 0)
+                    {
+                        folderPath = folderPath.Substring(0, index);
+                        if (!Directory.Exists(folderPath))
+                        {
+                            Directory.CreateDirectory(folderPath);
+                        }
+                    }
+
+                    index = linkFolderPath.LastIndexOf(@"\");
+                    if (index > 0)
+                    {
+                        linkFolderPath = linkFolderPath.Substring(0, index);
+                        if (!Directory.Exists(linkFolderPath))
+                        {
+                            Directory.CreateDirectory(linkFolderPath);
+                        }
+                    }
+
+                    using (FileStream fs = new FileStream(TARGETDIR + fileName, FileMode.Create))
                     {
                         fs.Write(buffer);
                         fs.Flush();
                         fs.Close();
+                        File.Delete(LINKDIR + fileName);
+                        bool result = CreateHardLink(LINKDIR + fileName, TARGETDIR + fileName, IntPtr.Zero);
                     }
 
                     ns.Write(response);
